@@ -1,5 +1,9 @@
-﻿using System.Net;
+﻿using DataTransferSecure.Services;
+using System;
+using System.Net;
 using System.Net.NetworkInformation;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace DataTransferSecure.Utilities
 {
@@ -49,4 +53,27 @@ namespace DataTransferSecure.Utilities
             return localIP;
         }
     }
+
+    public class ManInTheMiddle
+    {
+        private Communicator sender;
+        private Communicator receiver;
+
+        public ManInTheMiddle(Communicator sender, Communicator receiver)
+        {
+            this.sender = sender;
+            this.receiver = receiver;
+        }
+
+        public async Task InterceptAndModifyMessage(string message, Func<byte[], byte[]> modificationFunction)
+        {
+            byte[] originalData = Encoding.UTF8.GetBytes(message);
+            byte[] modifiedData = modificationFunction(originalData); // Nachricht manipulieren
+
+            // Nachricht manuell an den Empfänger weiterleiten
+
+            //await receiver.ReceiveModifiedMessage(modifiedData);
+        }
+    }
+
 }

@@ -1,4 +1,4 @@
-﻿### DataTransferSecure
+﻿# DataTransferSecure
 
 This is a simple WinForms tool to transfer data (currently text only) between two computers securely. 
 It uses AES encryption to encrypt the data before sending it over the network. 

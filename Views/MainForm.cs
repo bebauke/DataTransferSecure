@@ -34,30 +34,29 @@ namespace DataTransferSecure.Views
         internal void SetupUI()
         {
             this.Text = "Secure Data Transfer - Chat";
-            this.Size = new Size(800, 520);
+            this.Size = new Size(800, 320);
 
             // Menüleiste
             menuStrip = new MenuStrip();
             var fileMenu = new ToolStripMenuItem("Datei");
-            var setPortMenu = new ToolStripMenuItem("Ports", null, SetPortMenu_Click);
-            var connectMenu = new ToolStripMenuItem("Verbinden (Sicher)", null, async (sender, e) => await controller.Connect(encryptet: true));
-            var connectUnencryptedMenu = new ToolStripMenuItem("Verbinden", null, async (sender, e) => await controller.Connect(encryptet: false));
+            var connectMenu = new ToolStripMenuItem("Verbinden", null, async (sender, e) => await controller.Connect());
             var disconnectMenu = new ToolStripMenuItem("Verbindung trennen", null, (sender, e) => controller.Disconnect());
+            var settingsMenu = new ToolStripMenuItem("Einstellungen", null, (sender, e) => controller.OpenSettings());
 
-            fileMenu.DropDownItems.AddRange(new[] { setPortMenu, connectMenu, connectUnencryptedMenu, disconnectMenu });
+            fileMenu.DropDownItems.AddRange(new[] {connectMenu, disconnectMenu, settingsMenu});
             menuStrip.Items.Add(fileMenu);
             this.Controls.Add(menuStrip);
 
             // ChatBox
-            chatBox = new RichTextBox { Location = new Point(10, 40), Size = new Size(760, 370), ReadOnly = true };
+            chatBox = new RichTextBox { Location = new Point(10, 40), Size = new Size(760, 170), ReadOnly = true };
             this.Controls.Add(chatBox);
 
             // Nachrichteneingabe
-            messageInput = new TextBox { Location = new Point(10, 425), Size = new Size(660, 40) };
+            messageInput = new TextBox { Location = new Point(10, 225), Size = new Size(660, 40) };
             this.Controls.Add(messageInput);
 
             // Senden-Button
-            sendButton = new Button { Text = "Senden", Location = new Point(680, 420), Size = new Size(90, 30) };
+            sendButton = new Button { Text = "Senden", Location = new Point(680, 220), Size = new Size(90, 30) };
             sendButton.Click += async (sender, e) => await controller.SendMessage(messageInput.Text);
             this.Controls.Add(sendButton);
 
@@ -70,16 +69,7 @@ namespace DataTransferSecure.Views
             this.Controls.Add(statusStrip);
         }
 
-        internal void SetPortMenu_Click(object sender, EventArgs e)
-        {
-            // udpPort, udpServerPort, tcpPort };
-            string input = Prompt.ShowDialog("Lokaler UDP Port:", "UDP Port", controller.GetUDPPort().ToString());
-            controller.SetUDPPort(input);
-            input = Prompt.ShowDialog("Standart UDP Server Port:", "UDP Server Port", controller.GetUDPServerPort().ToString());
-            controller.SetUDPServerPort(input);
-            input = Prompt.ShowDialog("TCP Server Port:", "TCP Server Port", controller.GetTCPServerPort().ToString());
-            controller.SetTCPServerPort(input);
-        }
+
 
         // UI-Methoden
         internal void UpdateStatus(string status) => statusLabel.Text = $"Status: {status}";

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Net;
 using System.Threading.Tasks;
 using DataTransferSecure.Services;
 using DataTransferSecure.Views;
@@ -20,9 +19,10 @@ namespace DataTransferSecure.Controller
             communicator.MessageReceived += OnMessageReceived;
             communicator.ConnectionLost += OnConnectionLost;
 
+            // Default ports
             SetTCPServerPort(9000);
             SetUDPPort(8000);
-            SetUDPServerPort(8001);
+            SetUDPServerPort(8000);
         }
 
         // Nachricht senden
@@ -32,10 +32,7 @@ namespace DataTransferSecure.Controller
 
             try
             {
-                if (communicator.encrypted)
-                    await communicator.SendMessageAsync(message);
-                else
-                    await communicator.SendMessageAsync_unencrypted(message);
+                await communicator.SendMessageAsync(message);
                 mainForm.AppendMessage($"Ich: {message}");
             }
             catch (Exception ex)
@@ -53,7 +50,7 @@ namespace DataTransferSecure.Controller
         }
 
         // OnConnectionLost-Event-Handler
-        private void OnConnectionLost(object sender, EventArgs e)
+        internal void OnConnectionLost(object sender, EventArgs e)
         {
             communicator.Disconnect();
             mainForm.UpdateStatus("Verbindung verloren...");
@@ -61,13 +58,24 @@ namespace DataTransferSecure.Controller
         }
 
         // Verbindung wiederherstellen
-        public async Task Connect(bool encryptet = true)
+        public async Task Connect()
         {
-            bool result = await communicator.Reconnect(nTry: 3, encrypted: encryptet, statusCallback: status =>
+            bool result = await communicator.Reconnect(nTry: 3, statusCallback: status =>
             {
                 mainForm.UpdateStatus(status);
-#if DEBUG
-                mainForm.AppendMessage("Status: " + status, color: Color.MediumSlateBlue);
+                if (status.StartsWith("Warnung:"))
+                {
+                    mainForm.AppendMessage(status, color: Color.Red);
+                }
+                else if (status.StartsWith("Info:"))
+                {
+                    mainForm.AppendMessage(status, color: Color.Blue);
+                }
+#if DEBUG 
+                else
+                {
+                    mainForm.AppendMessage(status, color: Color.MediumSlateBlue);
+                }
 #endif
             });
 
@@ -75,7 +83,7 @@ namespace DataTransferSecure.Controller
             if (result)
             {
                 _status = communicator.GetTCPClientInfo()[0];
-                mainForm.SetChatBoxColor(encryptet ? Color.LightGreen : Color.MistyRose);
+                mainForm.SetChatBoxColor(communicator.UseEncryption ? Color.LightGreen : Color.MistyRose);
             }
             mainForm.UpdateStatus(communicator.IsConnected() ? "Verbunden: " + _status : "Verbindung fehlgeschlagen...");
         }
@@ -86,79 +94,41 @@ namespace DataTransferSecure.Controller
             mainForm.AppendMessage($"Empfangen: {message}");
         }
 
+        // Öffnet das Einstellungsfenster
+        public void OpenSettings()
+        {
+            using (var settingsForm = new SettingsForm())
+            {
+                // Übertrage aktuelle Werte
+                settingsForm.LocalUdpPort = communicator.udpPort;
+                settingsForm.DefaultUdpServerPort = communicator.udpServerPort;
+                settingsForm.TcpServerPort = communicator.tcpServerPort;
+                settingsForm.UseCertificates = communicator.UseCertificate;
+                settingsForm.UseEncryption = communicator.UseEncryption;
+                settingsForm.UseChecksum = communicator.UseChecksum;
+
+                if (settingsForm.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    // Übernimm die neuen Werte
+                    SetUDPPort(settingsForm.LocalUdpPort);
+                    SetUDPServerPort(settingsForm.DefaultUdpServerPort);
+                    SetTCPServerPort(settingsForm.TcpServerPort);
+
+                    // Update encryption technology settings
+                    communicator.UseEncryption = settingsForm.UseEncryption;
+                    communicator.UseCertificate = settingsForm.UseCertificates;
+                    communicator.UseChecksum = settingsForm.UseChecksum;
+                }
+            }
+        }
+
         // Setze Ports
+        public void SetUDPPort(int port) => communicator.udpPort = port;
+        public void SetUDPServerPort(int port) => communicator.udpServerPort = port;
+        public void SetTCPServerPort(int port) => communicator.tcpServerPort = port;
 
-        public void SetUDPPort(int port)
-        {
-            communicator.udpPort = port;
-        }
-        public void SetUDPPort(string port)
-        {
-            if (int.TryParse(port, out int udpPort))
-            {
-                SetUDPPort(udpPort);
-            }
-            else
-            {
-                mainForm.ShowError("Ungültiger Port.");
-            }
-        }
-
-        public void SetUDPServerPort(int port)
-        {
-            communicator.udpServerPort = port;
-        }
-        public void SetUDPServerPort(string port)
-        {
-            if (int.TryParse(port, out int udpServerPort))
-            {
-                SetUDPServerPort(udpServerPort);
-            }
-            else
-            {
-                mainForm.ShowError("Ungültiger Port.");
-            }
-        }
-
-
-        public void SetTCPServerPort(int port)
-        {
-            communicator.tcpServerPort = port;
-        }
-        public void SetTCPServerPort(string port)
-        {
-            if (int.TryParse(port, out int tcpPort))
-            {
-                SetTCPServerPort(tcpPort);
-            }
-            else
-            {
-                mainForm.ShowError("Ungültiger Port.");
-            }
-        }
-
-
-
-        public void updateIPAddresses(string local_ip, string remote_ip)
-        {
-            List<string> info = communicator.GetTCPClientInfo();
-            mainForm.UpdateIPs(info[0], info[1]);
-        }
-
-
-        public int GetUDPPort()
-        {
-            return communicator.udpPort;
-        }
-
-        public int GetUDPServerPort()
-        {
-            return communicator.udpServerPort;
-        }
-
-        public int GetTCPServerPort()
-        {
-            return communicator.tcpServerPort;
-        }
+        public int GetUDPPort() => communicator.udpPort;
+        public int GetUDPServerPort() => communicator.udpServerPort;
+        public int GetTCPServerPort() => communicator.tcpServerPort;
     }
 }

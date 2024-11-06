@@ -1,10 +1,12 @@
-﻿using System;
+﻿using DataTransferSecure.Utilities;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,7 +17,10 @@ namespace DataTransferSecure.Services
     public class Communicator
     {
 
-        internal bool encrypted = true;
+        internal bool UseEncryption = true;
+        internal bool UseCertificate = true;
+        internal bool UseChecksum = true;
+
 
         internal int udpPort;
         internal int tcpServerPort;
@@ -25,20 +30,26 @@ namespace DataTransferSecure.Services
         public event EventHandler ConnectionLost;
 
         internal string Role { get; set; } = "Unbekannt";
-        internal TcpClient tcpClient;
-        private TcpListener tcpListener;
-        private UdpClient udpClient;
         internal bool iAmServer { get; set; }
-        // Private Eigenschaft zum Speichern des gemeinsamen Schlüssels
-        private byte[] sharedSecretKey;
+        internal TcpClient tcpClient;
+        internal TcpListener tcpListener;
+        internal UdpClient udpClient;
+        // internal Eigenschaft zum Speichern des gemeinsamen Schlüssels
+        internal byte[] sharedSecretKey;
+        internal X509Certificate2 certificate;
+        internal X509Certificate2 remoteCertificate;
         CancellationTokenSource cts;
 
 
         // Initialisiert die Kommunikation
         // Initialisiert die Kommunikation und stellt sofort auf eine verschlüsselte Verbindung um
-        public async Task Init(int udpPort = 8000, int tcpServerPort = 9000, int timeoutMilliseconds = 5000, Action<string> statusCallback = null, bool encrypted = true, int udpServerPort = 8000)
+        public async Task Init(int udpPort = 8000, int tcpServerPort = 9000, int timeoutMilliseconds = 5000, Action<string> statusCallback = null, bool useEncryption = true, bool useCertificate = true, bool useChecksum = true, int udpServerPort = 8000)
         {
-            this.encrypted = encrypted;
+            this.UseEncryption = useEncryption;
+            this.UseCertificate = useCertificate;
+            this.UseChecksum = useChecksum;
+            if (useCertificate)
+                certificate = new X509Certificate2("D:/certificates/certificate.pfx", "vistaprint!");
 
             this.udpPort = udpPort;
             this.tcpServerPort = tcpServerPort;
@@ -52,7 +63,7 @@ namespace DataTransferSecure.Services
                 throw new InvalidOperationException($"UDP-Port {udpPort} wird bereits verwendet.");
             }
 
-            if(!Utilities.PortManager.IsPortAvailable(tcpServerPort))
+            if (!Utilities.PortManager.IsPortAvailable(tcpServerPort))
             {
                 throw new InvalidOperationException($"TCP-Port {tcpServerPort} wird bereits verwendet.");
             }
@@ -78,7 +89,7 @@ namespace DataTransferSecure.Services
                 throw new TimeoutException("TCP-Verbindung konnte nicht rechtzeitig hergestellt werden.");
             }
 
-            if (encrypted)
+            if (UseEncryption)
             {
                 // Schritt 3: Diffie-Hellman-Schlüsselaustausch durchführen
                 statusCallback?.Invoke("Stelle auf eine verschlüsselte Verbindung um...");
@@ -93,17 +104,99 @@ namespace DataTransferSecure.Services
             {
                 statusCallback?.Invoke("Verbindung hergestellt (unsicher)");
             }
+            if (UseCertificate)
+            {
+                try
+                {
+                    await AuthenticateCertificatesAsync(statusCallback: statusCallback);
 
+                }
+                catch (Exception ex)
+                {
+                    statusCallback?.Invoke($"Fehler beim Authentifizieren des Remote-Zertifikats: {ex.Message}");
+                    throw;
+                }
+            }
             // Schritt 4: Starte das Lauschen auf Nachrichten
-            StartListening(encrypted);
+            StartListening();
         }
+
+        // Authentifizieren des Remote-Zertifikats
+        internal async Task<bool> AuthenticateCertificatesAsync(int timeout = 5000, Action<string> statusCallback = null)
+        {
+            Task timeoutTask = Task.Delay(timeout); // Timeout-Task
+
+            if (tcpClient == null) throw new InvalidOperationException("TCP-Client ist nicht initialisiert.");
+
+            try
+            {
+                Task<byte[]> getBytes = ReciveCertificateBytesAsync(statusCallback);
+                Task sendBytes = SendCertificateBytesAsync(certificate.RawData);
+
+                Task task = Task.WhenAll(getBytes, sendBytes);
+                if (await Task.WhenAny(task, timeoutTask) == timeoutTask)
+                {
+                    throw new TimeoutException("Timeout beim Empfangen des Remote-Zertifikats.");
+                }
+
+                var remoteCertBytes = getBytes.Result;
+                remoteCertificate = new X509Certificate2(remoteCertBytes);
+                if (!remoteCertificate.Verify())
+                {
+                    if (CertUtils.IsSelfSignedCertificate(remoteCertificate))
+                    {
+                        statusCallback?.Invoke("Warnung: Das Remote-Zertifikat ist selbst signiert.");
+                    }
+                    else
+                    {
+                        statusCallback?.Invoke("Das Remote-Zertifikat ist nicht gültig.");
+                        return false;
+                    }
+
+                    using (var sha256 = SHA256.Create())
+                    {
+                        byte[] hash = sha256.ComputeHash(remoteCertificate.RawData);
+                        statusCallback?.Invoke($"Zertifikats-Hash (SHA-256): {BitConverter.ToString(hash).Replace("-", "")}");
+                    }
+
+                    statusCallback?.Invoke($"Info: Zertifikatinhaber: {CertUtils.GetSubject(certificate, "CN")} {CertUtils.GetSubject(certificate, "I")} ({CertUtils.GetSubject(certificate, "O")})");
+                }
+            }
+            catch (Exception ex)
+            {
+                statusCallback?.Invoke($"Fehler beim Überprüfen des Remote-Zertifikats: {ex.Message}");
+                throw;
+            }
+            return true;
+        }
+
+
+        internal async Task<byte[]> ReciveCertificateBytesAsync(Action<string> statusCallback = null)
+        {
+            // Beispielcode, um Zertifikatdaten asynchron vom Remote-Endpunkt zu empfangen
+            NetworkStream stream = tcpClient.GetStream();
+            byte[] buffer = new byte[4096];
+            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+            statusCallback?.Invoke("Zertifikatsdaten empfangen.");
+            return buffer.Take(bytesRead).ToArray();
+        }
+
+        internal async Task SendCertificateBytesAsync(byte[] certBytes, Action<string> statusCallback = null)
+        {
+            // Beispielcode, um Zertifikatdaten asynchron an den Remote-Endpunkt zu senden
+            NetworkStream stream = tcpClient.GetStream();
+            await stream.WriteAsync(certBytes, 0, certBytes.Length);
+            statusCallback?.Invoke("Zertifikatsdaten gesendet.");
+        }
+
+
 
         public void StopListening()
         {
             cts.Cancel();
         }
 
-        public void StartListening(bool encrypted = true, Action<string> statusCallback = null)
+        public void StartListening(Action<string> statusCallback = null)
         {
             if (cts != null)
             {
@@ -112,17 +205,11 @@ namespace DataTransferSecure.Services
                 statusCallback?.Invoke("Abbruch des Empfangs");
             }
             cts = new CancellationTokenSource();
-            if (encrypted)
-            {
-                ListenForMessages(cts, statusCallback);
-                statusCallback?.Invoke("Verschlüsselte Nachrichten werden empfangen");
-            }
-            else
-            {
 
-                ListenForMessages_unencrypted(cts, statusCallback);
-                statusCallback?.Invoke("Unverschlüsselte Nachrichten werden empfangen");
-            }
+            ListenForMessages(cts, statusCallback);
+            var encr = UseEncryption ? "Verschlüsselte" : "Unverschlüsselte";
+            statusCallback?.Invoke($"{encr} Nachrichten werden empfangen");
+
         }
 
 
@@ -192,12 +279,17 @@ namespace DataTransferSecure.Services
             string localIPAddress = Utilities.NetworkUtils.GetLocalIPAddress();
             IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Parse(localIPAddress), udpPort);
             string returnIPAddress = "";
-            byte[] handshakeMessage = Encoding.UTF8.GetBytes("HSK:Client");
+
+            var e = UseEncryption;
+            var f = UseCertificate;
+            var g = UseChecksum;
+            string _message = $"HSK:Client{DataTypesUtils.btos(e)}{DataTypesUtils.btos(f)}{DataTypesUtils.btos(g)}";
+            byte[] handshakeMessage = Encoding.UTF8.GetBytes(_message);
 
             try
             {
                 // Sende eine Handshake-Nachricht
-                statusCallback?.Invoke($"Sende Handshake-Nachricht (p{serverPort})");
+                statusCallback?.Invoke($"Sende Handshake-Nachricht (p{serverPort}): {_message}");
                 await udpClient.SendAsync(handshakeMessage, handshakeMessage.Length, broadcastEndPoint);
 
                 while (true)
@@ -221,14 +313,23 @@ namespace DataTransferSecure.Services
                         string response = Encoding.UTF8.GetString(result.Buffer);
                         statusCallback?.Invoke($"Antwort empfangen: {response}: {result.RemoteEndPoint.Address}:{result.RemoteEndPoint.Port}/{localEndPoint.Address}:{localEndPoint.Port}");
 
-                        iAmServer = response == "HSK:Client";
+                        iAmServer = response.StartsWith("HSK:Client");
                         Role = iAmServer ? "Server" : "Client";
                         statusCallback?.Invoke($"Ich bin der {Role}");
 
+                        var (_e, _f, _g) = (response[10]=='1', response[11]=='1', response[12]=='1');
+                        statusCallback?.Invoke($"Eigenschaften: Encrypted {_e} Certificates {_f} Checksum {_g}");
+                        var (n_e, n_f, n_g) = (e && _e, f && _f, g && _g);
+
+                        this.UseEncryption = n_e;
+                        this.UseCertificate = n_f;
+                        this.UseChecksum = n_g;
+
                         if (iAmServer)
                         {
+
                             // Gib die Rückmeldung, dass der Handshake erfolgreich war (HSK:Client)
-                            handshakeMessage = Encoding.UTF8.GetBytes("HSK:Server");
+                            handshakeMessage = Encoding.UTF8.GetBytes($"HSK:Server{DataTypesUtils.btos(n_e)}{DataTypesUtils.btos(n_f)}{DataTypesUtils.btos(n_g)}");
                             statusCallback?.Invoke($"Sende Antwort (p{result.RemoteEndPoint.Port})");
                             await udpClient.SendAsync(handshakeMessage, handshakeMessage.Length, result.RemoteEndPoint);
                             statusCallback?.Invoke($"Antwort gesendet");
@@ -237,6 +338,8 @@ namespace DataTransferSecure.Services
                         {
                             // Gib die Rückmeldung, dass der Handshake erfolgreich war (HSK:Server)
                         }
+                        statusCallback?.Invoke($"Info:Encrypted {UseEncryption}, Certificates {UseCertificate}, Checksum {UseChecksum}");
+
                         returnIPAddress = result.RemoteEndPoint.Address.ToString();
                         break; // Beende die Schleife, wenn eine gültige Nachricht empfangen wurde
                     }
@@ -251,7 +354,7 @@ namespace DataTransferSecure.Services
             {
                 statusCallback?.Invoke($"Fehler beim Senden/Empfangen: {ex.Message}");
             }
-            statusCallback?.Invoke($"Handshake beendet");
+            statusCallback?.Invoke($"Handshake abgschlossen.");
 
             // free resources
             udpClient.Close();
@@ -277,7 +380,7 @@ namespace DataTransferSecure.Services
             }
         }
 
-        public async Task<bool> Reconnect(int udpPort = 0, int tcpServerPort = 0, int udpServerPort = 0, Action<string> statusCallback = null, bool encrypted = true, int nTry = 1)
+        public async Task<bool> Reconnect(int udpPort = 0, int tcpServerPort = 0, int udpServerPort = 0, Action<string> statusCallback = null, int nTry = 1)
         {
             if (udpPort == 0)
                 udpPort = this.udpPort;
@@ -295,7 +398,7 @@ namespace DataTransferSecure.Services
                 try
                 {
                     // Reinitialize the connection
-                    await Init(udpPort, tcpServerPort, statusCallback: statusCallback, encrypted: encrypted, udpServerPort: udpServerPort);
+                    await Init(udpPort, tcpServerPort, statusCallback: statusCallback, useEncryption: this.UseEncryption, useChecksum: this.UseChecksum, useCertificate: this.UseCertificate, udpServerPort: udpServerPort);
                     return true;
                 }
                 catch (Exception ex)
@@ -310,14 +413,12 @@ namespace DataTransferSecure.Services
             return false;
         }
 
-
-
-        private async void ListenForMessages(CancellationTokenSource token, Action<string> statusCallback = null)
+        internal async void ListenForMessages(CancellationTokenSource token, Action<string> statusCallback = null)
         {
             try
             {
                 NetworkStream stream = tcpClient.GetStream();
-                byte[] buffer = new byte[1024];
+                byte[] buffer = new byte[4096]; // Größeres Buffer für mögliche Signatur- und Checksum-Daten
 
                 while (true)
                 {
@@ -331,59 +432,52 @@ namespace DataTransferSecure.Services
                         int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
                         if (bytesRead > 0)
                         {
-                            byte[] binaryData = buffer.Take(bytesRead).ToArray();
-                            string message = DecryptMessage(binaryData, GetSharedSecretKey());
+                            byte[] receivedData = buffer.Take(bytesRead).ToArray();
+                            byte[] signature = null;
+
+                            // Zertifikats- und Signaturprüfung, falls aktiviert
+                            if (UseCertificate)
+                            {
+                                signature = receivedData.Take(256).ToArray();
+                                receivedData = receivedData.Skip(256).ToArray();
+                            }
+
+                            // Prüfsumme abtrennen, falls aktiviert
+                            if (UseChecksum)
+                            {
+                                byte[] receivedChecksum = receivedData.Skip(receivedData.Length - 32).ToArray();
+                                receivedData = receivedData.Take(receivedData.Length - 32).ToArray();
+
+                                if (!VerifyChecksum(receivedData, receivedChecksum))
+                                {
+                                    statusCallback?.Invoke("Prüfsummenprüfung fehlgeschlagen. Nachricht ist möglicherweise beschädigt.");
+                                    continue;
+                                }
+                            }
+
+                            string message;
+                            if (UseEncryption)
+                            {
+                                // Nachricht entschlüsseln
+                                message = DecryptMessage(receivedData, GetSharedSecretKey());
+                            }
+                            else
+                            {
+                                // Nachricht als unverschlüsselt behandeln
+                                message = Encoding.UTF8.GetString(receivedData);
+                            }
+
+                            // Prüfe die Signatur nach der Entschlüsselung
+                            if (UseCertificate && !VerifyMessage(message, signature))
+                            {
+                                statusCallback?.Invoke("Warnung: Signaturprüfung fehlgeschlagen.");
+                                continue;
+                            }
+
                             MessageReceived?.Invoke(this, message);
                         }
                         else
                         {
-                            // If bytesRead is 0, the other side has disconnected
-                            statusCallback?.Invoke("Der andere Teilnehmer hat die Verbindung geschlossen.");
-                            ConnectionLost?.Invoke(this, EventArgs.Empty);
-                            Disconnect(); // Clean up this side's connection
-                            break;
-                        }
-                    }
-                    catch (IOException)
-                    {
-                        statusCallback?.Invoke("Fehler beim Lesen der Nachricht. Verbindung könnte unterbrochen sein.");
-                        Disconnect();
-                        break;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                statusCallback?.Invoke($"Fehler beim Empfangen von Nachrichten: {ex.Message}");
-            }
-            statusCallback?.Invoke("Verschlüsselte Nachrichten empfangen abgebrochen");
-        }
-
-        private async void ListenForMessages_unencrypted(CancellationTokenSource token, Action<string> statusCallback = null)
-        {
-            try
-            {
-                NetworkStream stream = tcpClient.GetStream();
-                byte[] buffer = new byte[1024];
-
-                while (true)
-                {
-                    if (token.IsCancellationRequested)
-                    {
-                        break;
-                    }
-
-                    try
-                    {
-                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                        if (bytesRead > 0)
-                        {
-                            string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                            MessageReceived?.Invoke(this, message);
-                        }
-                        else
-                        {
-                            // If bytesRead is 0, the other side has disconnected
                             statusCallback?.Invoke("Der andere Teilnehmer hat die Verbindung geschlossen.");
                             ConnectionLost?.Invoke(this, EventArgs.Empty);
                             Disconnect();
@@ -402,32 +496,48 @@ namespace DataTransferSecure.Services
             {
                 statusCallback?.Invoke($"Fehler beim Empfangen von Nachrichten: {ex.Message}");
             }
-            statusCallback?.Invoke("Unverschlüsselte Nachrichten empfangen abgebrochen");
+            statusCallback?.Invoke(UseEncryption ? "Verschlüsselte Nachrichten empfangen abgebrochen" : "Unverschlüsselte Nachrichten empfangen abgebrochen");
         }
 
 
-        public async Task SendMessageAsync_unencrypted(string message, Action<string> statusCallback = null)
-        {
-            if (tcpClient == null || !tcpClient.Connected)
-                throw new InvalidOperationException("Keine Verbindung vorhanden.");
 
-            NetworkStream stream = tcpClient.GetStream();
-            byte[] data = Encoding.UTF8.GetBytes(message);
-            await stream.WriteAsync(data, 0, data.Length);
-            statusCallback?.Invoke("Nachricht gesendet: " + data);
-        }
-
-        // Sendet eine Nachricht über TCP
         public async Task SendMessageAsync(string message, Action<string> statusCallback = null)
         {
             if (tcpClient == null || !tcpClient.Connected)
                 throw new InvalidOperationException("Keine Verbindung vorhanden.");
 
             NetworkStream stream = tcpClient.GetStream();
-            byte[] data = EncryptMessage(message, GetSharedSecretKey());
+            byte[] data;
+            byte[] signature = null;
+
+            if (UseEncryption)
+            {
+                // Nachricht verschlüsseln
+                data = EncryptMessage(message, GetSharedSecretKey());
+            }
+            else
+            {
+                // Nachricht als unverschlüsselt behandeln
+                data = Encoding.UTF8.GetBytes(message);
+            }
+            // Berechne und füge eine Prüfsumme hinzu, falls aktiviert
+            if (UseChecksum)
+            {
+                byte[] checksumData = ComputeChecksum(data);
+                data = data.Concat(checksumData).ToArray();
+            }
+            // Signiere die Nachricht, falls aktiviert
+            if (UseCertificate)
+            {
+                signature = SignMessage(message);
+                data = signature.Concat(data).ToArray();
+            }
+
             await stream.WriteAsync(data, 0, data.Length);
-            statusCallback?.Invoke("Nachricht verschlüsselt gesendet: " + data);
+            statusCallback?.Invoke(UseEncryption ? "Verschlüsselte Nachricht gesendet." : "Unverschlüsselte Nachricht gesendet.");
         }
+
+
 
         // Überprüft, ob die Verbindung aktiv ist
         public bool IsConnected()
@@ -536,14 +646,53 @@ namespace DataTransferSecure.Services
             }
         }
 
+
+        // Überprüfen der Integrität und Authentizität der Nachricht
+        public bool VerifyMessage(string message, byte[] signature)
+        {
+            using (var rsa = remoteCertificate.GetRSAPublicKey())
+            {
+                byte[] dataBytes = Encoding.UTF8.GetBytes(message);
+                return rsa.VerifyData(dataBytes, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            }
+        }
+
+        // Signiert eine Nachricht für die Authentizität
+        public byte[] SignMessage(string message)
+        {
+            using (var rsa = certificate.GetRSAPrivateKey())
+            {
+                byte[] dataBytes = Encoding.UTF8.GetBytes(message);
+                return rsa.SignData(dataBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            }
+        }
+
+        // Berechnet eine einfache Prüfsumme
+        internal byte[] ComputeChecksum(byte[] data)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                return sha256.ComputeHash(data);
+            }
+        }
+
+        // Überprüft die Prüfsumme
+        internal bool VerifyChecksum(byte[] data, byte[] checksum )
+        {
+            byte[] calculatedChecksum = ComputeChecksum(data);
+
+            return checksum.SequenceEqual(calculatedChecksum);
+        }
+
+
         // Methode, um den Schlüssel zu setzen
-        private void SetSharedSecretKey(byte[] key)
+        internal void SetSharedSecretKey(byte[] key)
         {
             sharedSecretKey = key;
         }
 
         // Methode, um den Schlüssel zu erhalten (z.B. für die Verwendung beim Verschlüsseln/Entschlüsseln)
-        private byte[] GetSharedSecretKey()
+        internal byte[] GetSharedSecretKey()
         {
             return sharedSecretKey;
         }
