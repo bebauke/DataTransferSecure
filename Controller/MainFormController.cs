@@ -106,6 +106,8 @@ namespace DataTransferSecure.Controller
                 settingsForm.UseCertificates = communicator.UseCertificate;
                 settingsForm.UseEncryption = communicator.UseEncryption;
                 settingsForm.UseChecksum = communicator.UseChecksum;
+                settingsForm.CertificatePath = communicator.CertificatePath;
+                settingsForm.CertificatePassword = communicator.CertificatePassword;
 
                 if (settingsForm.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 {
@@ -118,6 +120,10 @@ namespace DataTransferSecure.Controller
                     communicator.UseEncryption = settingsForm.UseEncryption;
                     communicator.UseCertificate = settingsForm.UseCertificates;
                     communicator.UseChecksum = settingsForm.UseChecksum;
+
+                    // Update certificate path
+                    communicator.CertificatePath = settingsForm.CertificatePath;
+                    communicator.CertificatePassword = settingsForm.CertificatePassword;
                 }
             }
         }

@@ -183,8 +183,8 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
-            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
+            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, port_a, port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
+            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, port_a, port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
 
             try
             {
@@ -221,8 +221,10 @@ namespace DataTransferSecure.Tests
             int port_server = PortManager.GetAvailablePort();
 
             // Initialize server and client for unencrypted communication
-            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(udpPort: port_a, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }, useEncryption: false, useCertificate:false, useChecksum:false));
-            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(udpPort: port_b, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }, useEncryption: false, useCertificate: false, useChecksum: false));
+            serverCommunicator = new Communicator() { UseEncryption = false, UseCertificate = false, UseChecksum = false };
+            clientCommunicator = new Communicator() { UseEncryption = false, UseCertificate = false, UseChecksum = false };
+            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(udpPort: port_a, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
+            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(udpPort: port_b, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
 
             try
             {
@@ -274,8 +276,10 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, udpServerPort: port_a, tcpServerPort: port_server, useEncryption: true, useCertificate: false, useChecksum: false, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
-            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, udpServerPort: port_a, tcpServerPort: port_server, useEncryption: true, useCertificate: false, useChecksum: false, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
+            clientCommunicator = new Communicator() { UseEncryption = true, UseCertificate = false, UseChecksum = false };
+            serverCommunicator = new Communicator() { UseEncryption = true, UseCertificate = false, UseChecksum = false };
+            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
+            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
 
             try
             {
@@ -320,8 +324,10 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, udpServerPort: port_a, tcpServerPort: port_server, useEncryption: true, useCertificate: true, useChecksum: false, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
-            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, udpServerPort: port_a, tcpServerPort: port_server, useEncryption: true, useCertificate: true, useChecksum: false, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
+            clientCommunicator = new Communicator() { UseEncryption = true, UseCertificate = true, UseChecksum = false };
+            serverCommunicator = new Communicator() { UseEncryption = true, UseCertificate = true, UseChecksum = false };
+            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
+            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
 
             try
             {
@@ -366,8 +372,10 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, udpServerPort: port_a, tcpServerPort: port_server, useEncryption: false, useCertificate: false, useChecksum: true, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
-            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, udpServerPort: port_a, tcpServerPort: port_server, useEncryption: false, useCertificate: false, useChecksum: true, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
+            clientCommunicator = new Communicator() { UseEncryption = false, UseCertificate = false, UseChecksum = true };
+            serverCommunicator = new Communicator() { UseEncryption = false, UseCertificate = false, UseChecksum = true };
+            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
+            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, udpServerPort: port_a, tcpServerPort: port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
 
             try
             {
@@ -418,8 +426,8 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
-            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
+            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, port_a, port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
+            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, port_a, port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
 
             try
             {
@@ -459,8 +467,8 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
-            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
+            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, port_a, port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
+            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, port_a, port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
 
             try
             {
@@ -500,8 +508,8 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
-            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
+            Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(port_a, port_a, port_server, statusCallback: status => { statusMessages.Add($"Server: {status}"); }));
+            Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(port_b, port_a, port_server, statusCallback: status => { statusMessages.Add($"Client: {status}"); }));
 
             try
             {
@@ -545,8 +553,8 @@ namespace DataTransferSecure.Tests
             {
                 // Initialize and start both server and client
                 await Task.WhenAll(
-                    serverCommunicator.Init(port_a, port_server, udpServerPort: port_a),
-                    clientCommunicator.Init(port_b, port_server, udpServerPort: port_a)
+                    serverCommunicator.Init(port_a, port_a, port_server),
+                    clientCommunicator.Init(port_b, port_a, port_server)
                 );
 
                 // Verify initial connection
@@ -610,8 +618,8 @@ namespace DataTransferSecure.Tests
             try
             {
                 await Task.WhenAll(
-                    serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, statusCallback: status => statusMessages.Add($"Server: {status}")),
-                    clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, statusCallback: status => statusMessages.Add($"Client: {status}"))
+                    serverCommunicator.Init(port_a, udpServerPort: port_a, port_server, statusCallback: status => statusMessages.Add($"Server: {status}")),
+                    clientCommunicator.Init(port_b, udpServerPort: port_a, port_server, statusCallback: status => statusMessages.Add($"Client: {status}"))
                 );
             }
             catch (Exception e)
@@ -620,16 +628,16 @@ namespace DataTransferSecure.Tests
             }
 
             // Check if Certificates are Selfsigned
-            Assert.False(CertUtils.IsSelfSignedCertificate(serverCommunicator.certificate), "Server certificate is self-signed.");
-            Assert.False(CertUtils.IsSelfSignedCertificate(clientCommunicator.certificate), "Client certificate is self-signed.");
+            Assert.False(CertUtils.IsSelfSignedCertificate(serverCommunicator.Certificate), "Server certificate is self-signed.");
+            Assert.False(CertUtils.IsSelfSignedCertificate(clientCommunicator.Certificate), "Client certificate is self-signed.");
 
             // Assert: Check if both communicators verified the remote certificate
-            Assert.NotNull(serverCommunicator.remoteCertificate);
-            Assert.NotNull(clientCommunicator.remoteCertificate);
+            Assert.NotNull(serverCommunicator.RemoteCertificate);
+            Assert.NotNull(clientCommunicator.RemoteCertificate);
 
             // Further verify that the certificates are valid (you can use additional checks if needed)
-            Assert.True(serverCommunicator.remoteCertificate.Verify(), "Server certificate could not be verified.");
-            Assert.True(clientCommunicator.remoteCertificate.Verify(), "Client certificate could not be verified.");
+            Assert.True(serverCommunicator.RemoteCertificate.Verify(), "Server certificate could not be verified.");
+            Assert.True(clientCommunicator.RemoteCertificate.Verify(), "Client certificate could not be verified.");
 
             // Clean up
             serverCommunicator.Disconnect();
@@ -652,8 +660,8 @@ namespace DataTransferSecure.Tests
             try
             {
                 await Task.WhenAll(
-                    serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, statusCallback: status => statusMessages.Add($"Server: {status}")),
-                    clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, statusCallback: status => statusMessages.Add($"Client: {status}"))
+                    serverCommunicator.Init(port_a, port_a, port_server, statusCallback: status => statusMessages.Add($"Server: {status}")),
+                    clientCommunicator.Init(port_b, port_a, port_server, statusCallback: status => statusMessages.Add($"Client: {status}"))
                 );
             }
             catch (Exception e)
@@ -690,8 +698,8 @@ namespace DataTransferSecure.Tests
             try
             {
                 await Task.WhenAll(
-                    serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, statusCallback: status => statusMessages.Add($"Server: {status}"), useEncryption: true),
-                    clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, statusCallback: status => statusMessages.Add($"Client: {status}"), useEncryption: true)
+                    serverCommunicator.Init(port_a, port_a, port_server, statusCallback: status => statusMessages.Add($"Server: {status}")),
+                    clientCommunicator.Init(port_b, port_a, port_server, statusCallback: status => statusMessages.Add($"Client: {status}"))
                 );
             }
             catch (Exception e)
@@ -774,8 +782,8 @@ namespace DataTransferSecure.Tests
             int port_server = PortManager.GetAvailablePort();
 
             await Task.WhenAll(
-                serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, statusCallback: status => statusMessages.Add($"Server: {status}")),
-                clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, statusCallback: status => statusMessages.Add($"Client: {status}"))
+                serverCommunicator.Init(port_a, udpServerPort: port_a, port_server, statusCallback: status => statusMessages.Add($"Server: {status}")),
+                clientCommunicator.Init(port_b, udpServerPort: port_a, port_server, statusCallback: status => statusMessages.Add($"Client: {status}"))
             );
 
             string[] messagesToSend = { "Message 1", "Message 2", "Message 3", "Message 4", "Message 5" };
@@ -847,9 +855,15 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
+            serverCommunicator = new Communicator() { UseEncryption = true, UseCertificate = false, UseChecksum = false };
+            clientCommunicator = new Communicator() { UseEncryption = true, UseCertificate = false, UseChecksum = false };
             await Task.WhenAll(
-                serverCommunicator.Init(port_a, port_server, udpServerPort: port_a, useEncryption: true, useCertificate: false, useChecksum: false, statusCallback: status => statusMessages.Add($"Server: {status}")),
-                clientCommunicator.Init(port_b, port_server, udpServerPort: port_a, useEncryption: true, useCertificate: false, useChecksum: false, statusCallback: status => statusMessages.Add($"Client: {status}"))
+                serverCommunicator.Init(
+                    port_a, port_a, port_server,
+                    statusCallback: status => statusMessages.Add($"Server: {status}")),
+                clientCommunicator.Init(
+                    port_b, port_a, port_server,
+                    statusCallback: status => statusMessages.Add($"Client: {status}"))
             );
 
             string originalMessage = "This is a secure message.";
@@ -892,17 +906,18 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
+
+            clientCommunicator = new Communicator() { UseEncryption = true, UseCertificate = true, UseChecksum = false };
+            serverCommunicator = new Communicator() { UseEncryption = true, UseCertificate = false, UseChecksum = true };
             // Server möchte Verschlüsselung und Zertifikate, aber keine Prüfsummen
             Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(
-                port_a, port_server, udpServerPort: port_a,
-                useEncryption: true, useCertificate: true, useChecksum: false,
+                port_a, port_a, port_server,
                 statusCallback: status => statusMessages.Add($"Server: {status}")
             ));
 
             // Client möchte Verschlüsselung und Prüfsummen, aber keine Zertifikate
             Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(
-                port_b, port_server, udpServerPort: port_a,
-                useEncryption: true, useCertificate: false, useChecksum: true,
+                port_b, port_a, port_server,
                 statusCallback: status => statusMessages.Add($"Client: {status}")
             ));
 
@@ -941,17 +956,17 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            // Server möchte Zertifikate, keine Verschlüsselung und keine Prüfsummen
+            serverCommunicator = new Communicator() { UseEncryption = false, UseCertificate = true, UseChecksum = true };
+            clientCommunicator = new Communicator() { UseEncryption = true, UseCertificate = true, UseChecksum = false };
+            // Server möchte Zertifikate und Prüfsummen, aber keine Verschlüsselung
             Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(
-                port_a, port_server, udpServerPort: port_a,
-                useEncryption: false, useCertificate: true, useChecksum: false,
+                port_a, port_a, port_server,
                 statusCallback: status => statusMessages.Add($"Server: {status}")
             ));
 
-            // Client möchte ebenfalls Zertifikate, aber ohne Verschlüsselung und ohne Prüfsummen
+            // Client möchte Verschlüsselung und Zertifikate, aber keine Prüfsummen
             Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(
-                port_b, port_server, udpServerPort: port_a,
-                useEncryption: false, useCertificate: true, useChecksum: false,
+                port_b, port_a, port_server,
                 statusCallback: status => statusMessages.Add($"Client: {status}")
             ));
 
@@ -987,17 +1002,17 @@ namespace DataTransferSecure.Tests
             int port_b = PortManager.GetAvailablePort();
             int port_server = PortManager.GetAvailablePort();
 
-            // Server möchte Prüfsummen und keine Verschlüsselung oder Zertifikate
+            serverCommunicator = new Communicator() { UseEncryption = true, UseCertificate = false, UseChecksum = true };
+            clientCommunicator = new Communicator() { UseEncryption = false, UseCertificate = true, UseChecksum = true };
+            // Server möchte Prüfsummen und Verschlüsselung, aber keine Zertifikate
             Lazy<Task> serverTask = new Lazy<Task>(() => serverCommunicator.Init(
-                port_a, port_server, udpServerPort: port_a,
-                useEncryption: false, useCertificate: false, useChecksum: true,
+                port_a,port_a, port_server,
                 statusCallback: status => statusMessages.Add($"Server: {status}")
             ));
 
-            // Client möchte ebenfalls Prüfsummen, aber ohne Verschlüsselung und ohne Zertifikate
+            // Client möchte Prüfsummen und Zertifikate, aber keine Verschlüsselung
             Lazy<Task> clientTask = new Lazy<Task>(() => clientCommunicator.Init(
-                port_b, port_server, udpServerPort: port_a,
-                useEncryption: false, useCertificate: false, useChecksum: true,
+                port_b, port_a, port_server,
                 statusCallback: status => statusMessages.Add($"Client: {status}")
             ));
 

@@ -36,20 +36,19 @@ namespace DataTransferSecure.Services
         internal UdpClient udpClient;
         // internal Eigenschaft zum Speichern des gemeinsamen Schlüssels
         internal byte[] sharedSecretKey;
-        internal X509Certificate2 certificate;
-        internal X509Certificate2 remoteCertificate;
+        internal string CertificatePath = "D:/certificates/certificate.pfx";
+        internal string CertificatePassword = "vistaprint!";
+        internal X509Certificate2 Certificate;
+        internal X509Certificate2 RemoteCertificate;
         CancellationTokenSource cts;
 
 
         // Initialisiert die Kommunikation
         // Initialisiert die Kommunikation und stellt sofort auf eine verschlüsselte Verbindung um
-        public async Task Init(int udpPort = 8000, int tcpServerPort = 9000, int timeoutMilliseconds = 5000, Action<string> statusCallback = null, bool useEncryption = true, bool useCertificate = true, bool useChecksum = true, int udpServerPort = 8000)
+        public async Task Init(int udpPort = 8000, int udpServerPort = 8000, int tcpServerPort = 9000, int timeoutMilliseconds = 5000, Action<string> statusCallback = null)
         {
-            this.UseEncryption = useEncryption;
-            this.UseCertificate = useCertificate;
-            this.UseChecksum = useChecksum;
-            if (useCertificate)
-                certificate = new X509Certificate2("D:/certificates/certificate.pfx", "vistaprint!");
+            if (UseCertificate)
+                Certificate = new X509Certificate2(CertificatePath, CertificatePassword);
 
             this.udpPort = udpPort;
             this.tcpServerPort = tcpServerPort;
@@ -131,7 +130,7 @@ namespace DataTransferSecure.Services
             try
             {
                 Task<byte[]> getBytes = ReciveCertificateBytesAsync(statusCallback);
-                Task sendBytes = SendCertificateBytesAsync(certificate.RawData);
+                Task sendBytes = SendCertificateBytesAsync(Certificate.RawData);
 
                 Task task = Task.WhenAll(getBytes, sendBytes);
                 if (await Task.WhenAny(task, timeoutTask) == timeoutTask)
@@ -140,10 +139,10 @@ namespace DataTransferSecure.Services
                 }
 
                 var remoteCertBytes = getBytes.Result;
-                remoteCertificate = new X509Certificate2(remoteCertBytes);
-                if (!remoteCertificate.Verify())
+                RemoteCertificate = new X509Certificate2(remoteCertBytes);
+                if (!RemoteCertificate.Verify())
                 {
-                    if (CertUtils.IsSelfSignedCertificate(remoteCertificate))
+                    if (CertUtils.IsSelfSignedCertificate(RemoteCertificate))
                     {
                         statusCallback?.Invoke("Warnung: Das Remote-Zertifikat ist selbst signiert.");
                     }
@@ -155,11 +154,11 @@ namespace DataTransferSecure.Services
 
                     using (var sha256 = SHA256.Create())
                     {
-                        byte[] hash = sha256.ComputeHash(remoteCertificate.RawData);
+                        byte[] hash = sha256.ComputeHash(RemoteCertificate.RawData);
                         statusCallback?.Invoke($"Zertifikats-Hash (SHA-256): {BitConverter.ToString(hash).Replace("-", "")}");
                     }
 
-                    statusCallback?.Invoke($"Info: Zertifikatinhaber: {CertUtils.GetSubject(certificate, "CN")} {CertUtils.GetSubject(certificate, "I")} ({CertUtils.GetSubject(certificate, "O")})");
+                    statusCallback?.Invoke($"Info: Zertifikatinhaber: {CertUtils.GetSubject(Certificate, "CN")} {CertUtils.GetSubject(Certificate, "I")} ({CertUtils.GetSubject(Certificate, "O")})");
                 }
             }
             catch (Exception ex)
@@ -396,9 +395,9 @@ namespace DataTransferSecure.Services
             while (nTry > 0)
             {
                 try
-                {
+                { 
                     // Reinitialize the connection
-                    await Init(udpPort, tcpServerPort, statusCallback: statusCallback, useEncryption: this.UseEncryption, useChecksum: this.UseChecksum, useCertificate: this.UseCertificate, udpServerPort: udpServerPort);
+                    await Init(udpPort, udpServerPort, tcpServerPort, statusCallback: statusCallback);
                     return true;
                 }
                 catch (Exception ex)
@@ -650,7 +649,7 @@ namespace DataTransferSecure.Services
         // Überprüfen der Integrität und Authentizität der Nachricht
         public bool VerifyMessage(string message, byte[] signature)
         {
-            using (var rsa = remoteCertificate.GetRSAPublicKey())
+            using (var rsa = RemoteCertificate.GetRSAPublicKey())
             {
                 byte[] dataBytes = Encoding.UTF8.GetBytes(message);
                 return rsa.VerifyData(dataBytes, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -660,7 +659,7 @@ namespace DataTransferSecure.Services
         // Signiert eine Nachricht für die Authentizität
         public byte[] SignMessage(string message)
         {
-            using (var rsa = certificate.GetRSAPrivateKey())
+            using (var rsa = Certificate.GetRSAPrivateKey())
             {
                 byte[] dataBytes = Encoding.UTF8.GetBytes(message);
                 return rsa.SignData(dataBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);

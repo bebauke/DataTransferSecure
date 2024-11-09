@@ -5,22 +5,25 @@ namespace DataTransferSecure.Views
 {
     public partial class SettingsForm : Form
     {
-        // Properties to hold the user inputs
         public int LocalUdpPort { get; set; }
         public int DefaultUdpServerPort { get; set; }
         public int TcpServerPort { get; set; }
         public bool UseEncryption { get; set; }
         public bool UseCertificates { get; set; }
         public bool UseChecksum { get; set; }
+        public string CertificatePath { get; set; }
+        public string CertificatePassword { get; set; } // New property for certificate password
 
         private TextBox localUdpPortTextBox;
         private TextBox defaultUdpServerPortTextBox;
         private TextBox tcpServerPortTextBox;
+        private TextBox certificatePathTextBox;
+        private TextBox certificatePasswordTextBox; // New TextBox for password
+        private OpenFileDialog certificatePathDialog;
         private CheckBox encryptionCheckBox;
         private CheckBox certificatesCheckBox;
         private CheckBox checksumCheckBox;
 
-        // Constructor
         public SettingsForm()
         {
             InitializeComponent();
@@ -29,14 +32,12 @@ namespace DataTransferSecure.Views
 
         private void SetupUI()
         {
-            // Set form properties
             this.Text = "Einstellungen";
-            this.Size = new System.Drawing.Size(400, 290);
+            this.Size = new System.Drawing.Size(400, 400);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.StartPosition = FormStartPosition.CenterScreen;
 
-            // Labels and TextBoxes for ports
             var localUdpPortLabel = new Label { Text = "Lokaler UDP Port:", Left = 20, Top = 20, AutoSize = true };
             localUdpPortTextBox = new TextBox { Left = 150, Top = 20, Width = 200, Text = LocalUdpPort.ToString() };
 
@@ -46,20 +47,43 @@ namespace DataTransferSecure.Views
             var tcpServerPortLabel = new Label { Text = "TCP Server Port:", Left = 20, Top = 100, AutoSize = true };
             tcpServerPortTextBox = new TextBox { Left = 150, Top = 100, Width = 200, Text = TcpServerPort.ToString() };
 
-            // GroupBox for encryption technology
-            var encryptionGroupBox = new GroupBox { Text = "Verschlüsselungstechnologie", Left = 20, Top = 140, Width = 350, Height = 50 };
+            var encryptionGroupBox = new GroupBox { Text = "Verschlüsselungstechnologie", Left = 20, Top = 140, Width = 350, Height = 120 };
             encryptionCheckBox = new CheckBox { Text = "AES", Left = 20, Top = 20, AutoSize = true, Checked = UseEncryption };
             certificatesCheckBox = new CheckBox { Text = "X509", Left = 100, Top = 20, AutoSize = true, Checked = UseCertificates };
             checksumCheckBox = new CheckBox { Text = "Checksum", Left = 180, Top = 20, AutoSize = true, Checked = UseChecksum };
+            certificatePathDialog = new OpenFileDialog { Title = "Wählen Sie ein Zertifikat aus" };
+            var certificatePathLabel = new Label { Text = "Zertifikatspfad:", Left = 20, Top = 60, AutoSize = true };
+            certificatePathTextBox = new TextBox { Left = 110, Top = 55, Width = 140, ReadOnly = true, Text = CertificatePath };
+            var browseButton = new Button { Text = "Durchsuchen...", Left = 255, Top = 55, Width = 80 };
+            browseButton.Click += (sender, e) =>
+            {
+                if (certificatePathDialog.ShowDialog() == DialogResult.OK)
+                {
+                    CertificatePath = certificatePathDialog.FileName;
+                    certificatePathTextBox.Text = CertificatePath;
+                }
+            };
 
-            // Save and Cancel buttons
-            var saveButton = new Button { Text = "Speichern", Left = 20, Top = 200, Width = 80 };
-            var cancelButton = new Button { Text = "Abbrechen", Left = 290, Top = 200, Width = 80 };
+            var certificatePasswordLabel = new Label { Text = "Zertifikatpasswort:", Left = 20, Top = 95, AutoSize = true };
+            certificatePasswordTextBox = new TextBox { Left = 110, Top = 90, Width = 220, PasswordChar = '*', Text = CertificatePassword }; // Password
 
-            // Add event handlers
+
+            // Enable/Disable certificate path and password fields based on certificates checkbox
+            certificatesCheckBox.CheckedChanged += (sender, e) =>
+            {
+                certificatePathTextBox.Enabled = certificatesCheckBox.Checked;
+                browseButton.Enabled = certificatesCheckBox.Checked;
+                certificatePasswordTextBox.Enabled = certificatesCheckBox.Checked;
+            };
+            certificatePathTextBox.Enabled = certificatesCheckBox.Checked;
+            browseButton.Enabled = certificatesCheckBox.Checked;
+            certificatePasswordTextBox.Enabled = certificatesCheckBox.Checked;
+
+            var saveButton = new Button { Text = "Speichern", Left = 20, Top = 310, Width = 80 };
+            var cancelButton = new Button { Text = "Abbrechen", Left = 290, Top = 310, Width = 80 };
+
             saveButton.Click += (sender, e) =>
             {
-                // Validate and save the user inputs
                 if (int.TryParse(localUdpPortTextBox.Text, out int localUdp) &&
                     int.TryParse(defaultUdpServerPortTextBox.Text, out int defaultUdpServer) &&
                     int.TryParse(tcpServerPortTextBox.Text, out int tcpServer))
@@ -70,6 +94,7 @@ namespace DataTransferSecure.Views
                     UseEncryption = encryptionCheckBox.Checked;
                     UseCertificates = certificatesCheckBox.Checked;
                     UseChecksum = checksumCheckBox.Checked;
+                    CertificatePassword = certificatePasswordTextBox.Text;
 
                     this.DialogResult = DialogResult.OK;
                     this.Close();
@@ -82,7 +107,6 @@ namespace DataTransferSecure.Views
 
             cancelButton.Click += (sender, e) => this.Close();
 
-            // Add controls to the form
             this.Controls.Add(localUdpPortLabel);
             this.Controls.Add(localUdpPortTextBox);
             this.Controls.Add(defaultUdpServerPortLabel);
@@ -93,11 +117,15 @@ namespace DataTransferSecure.Views
             encryptionGroupBox.Controls.Add(encryptionCheckBox);
             encryptionGroupBox.Controls.Add(certificatesCheckBox);
             encryptionGroupBox.Controls.Add(checksumCheckBox);
+            encryptionGroupBox.Controls.Add(certificatePathLabel);
+            encryptionGroupBox.Controls.Add(certificatePathTextBox);
+            encryptionGroupBox.Controls.Add(browseButton);
+            encryptionGroupBox.Controls.Add(certificatePasswordLabel);
+            encryptionGroupBox.Controls.Add(certificatePasswordTextBox);
             this.Controls.Add(saveButton);
             this.Controls.Add(cancelButton);
         }
 
-        // Load existing values into the UI controls when the form is shown
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
@@ -107,6 +135,8 @@ namespace DataTransferSecure.Views
             encryptionCheckBox.Checked = UseEncryption;
             certificatesCheckBox.Checked = UseCertificates;
             checksumCheckBox.Checked = UseChecksum;
+            certificatePathTextBox.Text = CertificatePath;
+            certificatePasswordTextBox.Text = CertificatePassword;
         }
     }
 }
